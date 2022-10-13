@@ -166,9 +166,9 @@ let to_locally_nameless (t : C.term) : term =
 (* 可以在 utop 中查看下面的值, 看看是否符合预期. 
    写好一个函数后在小例子上试一试看看对不对, 这种活动叫做 sanity check,
    翻译成中文可以是 "神志清醒检验", 即检查是否出现了神志不清的情况. *)
-    (* first = λ x . λ y . x  = λ . λ . 1 *)
+    (* first  = λ x . λ y . x = λ . λ . 1 *)
     (* second = λ x . λ y . y = λ . λ . 0 *)
-let t_first = to_locally_nameless C.st_first
+let t_first  = to_locally_nameless C.st_first
 let t_second = to_locally_nameless C.st_second
 
 (* 顺便介绍两个函数作用的运算符.
@@ -191,8 +191,20 @@ let t_second = to_locally_nameless C.st_second
    下面演示一下.
    *)
 
+    (* with_free = x (λ y . y z)
+               = x ( λ y . (y z) )
+               = x ( λ . 0 z ) *)
+
 let t_id = to_locally_nameless @@ C.st_id
 let t_with_free = C.st_with_free |> to_locally_nameless
+
+(* exercise 1 = λ x . (λ y . x y) (λ z . z)
+                = λ x . ( ( λ y . (x y) ) (λ z . z) ) *)
+let t_ex1 = to_locally_nameless @@ C.st_ex1
+
+(* exercise 2 = λ f . λ x . f x 
+              = λ f . ( λ x . (f x) ) *)
+let t_ex2 = C.st_ex2 |> to_locally_nameless
 
 (* 再顺便一提, 你觉得上面的 "@@" 和 "|>" 运算符是什么语言本身自带的, 神圣的东西吗?
    完全不是. 你如果在使用有溯源功能的编辑器, 可以对这两个运算符溯源 
@@ -238,7 +250,7 @@ let rec syn_equal (t : term) (t' : term) : bool =
   | Var (Bound k) , Var (Bound k') -> k = k'
   | Var (Free s) , Var (Free s') -> String.(s = s')
   | Lam r , Lam r' -> syn_equal r r'
-  | Ap (e1 , e2) , Ap (e1' , e2') -> raise Todo
+  | Ap (e1 , e2) , Ap (e1' , e2') -> (syn_equal e1 e1') && (syn_equal e2 e2')
   | _ -> false
 
 
