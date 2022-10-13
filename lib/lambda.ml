@@ -200,11 +200,11 @@ let t_with_free = C.st_with_free |> to_locally_nameless
 
 (* exercise 1 = λ x . (λ y . x y) (λ z . z)
                 = λ x . ( ( λ y . (x y) ) (λ z . z) ) *)
-let t_ex1 = to_locally_nameless @@ C.st_ex1
+(* let t_ex1 = to_locally_nameless @@ C.st_ex1 *)
 
 (* exercise 2 = λ f . λ x . f x 
               = λ f . ( λ x . (f x) ) *)
-let t_ex2 = C.st_ex2 |> to_locally_nameless
+(* let t_ex2 = C.st_ex2 |> to_locally_nameless *)
 
 (* 再顺便一提, 你觉得上面的 "@@" 和 "|>" 运算符是什么语言本身自带的, 神圣的东西吗?
    完全不是. 你如果在使用有溯源功能的编辑器, 可以对这两个运算符溯源 
@@ -260,7 +260,12 @@ let rec syn_equal (t : term) (t' : term) : bool =
    组成一个 list (不需要排序或者去除重复, 只要这个 list 包含且仅包含所有的
    free variables 即可). *)
 
-let rec free_var (t : term) : string list = raise Todo
+let rec free_var (t : term) : string list = 
+  match t with
+  | Var (Bound k) -> []
+  | Var (Free s)  -> [s]
+  | Lam r         -> free_var r
+  | Ap (e1 , e2)  -> List.append (free_var e1) (free_var e2)
 
 (* 下面要做的是 to_locally_nameless 的反向, 即
    将 locally nameless representation (term) 变回
