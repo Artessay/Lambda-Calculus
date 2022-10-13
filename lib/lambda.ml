@@ -151,18 +151,23 @@ exception BadRepresentation of string
    *)
 
 (* 删掉 [ Var (Free "_") ], 取消下面的注释  *)
-let to_locally_nameless (t : C.term) : term = Var (Free "_")
-  (* let rec aux t d m : term =
+let to_locally_nameless (t : C.term) : term = 
+  let rec aux t d m : term =  (* t: term; d: depth; m: map*)
     match t with
-    | C.Var s -> raise Todo
-    | C.Lam (s , t') -> raise Todo
-    | C.Ap (t1 , t2) -> raise Todo
+    | C.Var s -> (* Var ( Free s ) *)
+      ( match Map.find m s with
+      | None    -> Var ( Free s )
+      | Some x  -> Var ( Bound (d-x-1) ) )
+    | C.Lam (s , t') -> Lam (aux t' (d+1) (Map.set m ~key:s ~data:d));
+    | C.Ap (t1 , t2) -> Ap ( (aux t1 d m) , (aux t2 d m) ) 
     in 
-  aux t 0 (Map.empty (module String)) *)
+  aux t 0 (Map.empty (module String))
 
 (* 可以在 utop 中查看下面的值, 看看是否符合预期. 
    写好一个函数后在小例子上试一试看看对不对, 这种活动叫做 sanity check,
    翻译成中文可以是 "神志清醒检验", 即检查是否出现了神志不清的情况. *)
+    (* first = λ x . λ y . x  = λ . λ . 1 *)
+    (* second = λ x . λ y . y = λ . λ . 0 *)
 let t_first = to_locally_nameless C.st_first
 let t_second = to_locally_nameless C.st_second
 
