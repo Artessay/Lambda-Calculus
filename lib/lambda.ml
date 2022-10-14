@@ -370,10 +370,10 @@ let rec subst_bound (a : term) (b : term) : term =
   let rec substBound a b d : term = 
     match a with
     | Var (Bound k) -> 
-      if k = (d-1) then b else a
+      if (phys_equal k (d-1)) then b else a
     | Var (Free s)  -> a
     | Lam r         -> Lam (substBound r b (d+1))
-    | Ap (e1 , e2)  -> Ap (substBound e1 b d, substBound e2 b d)
+    | Ap (e1 , e2)  -> Ap (substBound e1 b d, substBound e2 b d)  (* subst_bound (substBound e1 b d) (substBound e2 b d) *)
     in
   substBound a b 0
 
@@ -421,7 +421,16 @@ module Good_nf = struct
   let dsubst_bound (a : dterm) (b : dterm) : dterm = raise Todo
 
   (* 你可能需要的 dterm 和 term 之间的转换函数 *)
-  let rec to_dterm (t : term) : dterm = raise Todo
+  let rec to_dterm (t : term) : dterm = 
+    let rec toDterm t l : dterm = 
+      match t with
+      | Ap (t1, t2)   -> DAp ( toDterm t1 l , toDterm t2 l )
+      | Lam t'        -> DLam ( toDterm t' (l+1) )
+      | Var (Bound k) -> DVar ( DLevel (l-1-k) )
+      | Var (Free s)  -> DVar ( DFree s )
+    in
+    toDterm t 0
+    
   let rec from_dterm (t : dterm) : term = raise Todo
 
   (* 你要实现的 normalization 函数. 
