@@ -448,17 +448,21 @@ module Good_nf = struct
 
   (* 你可能需要的 dterm 和 term 之间的转换函数 *)
   let rec to_dterm (t : term) : dterm = 
-    let rec toDterm t level last_ap : dterm = 
+    let rec toDterm t level first_ap : dterm = 
       match t with
-      | Ap (t1, t2)   -> DAp ( toDterm t1 level level, toDterm t2 level level )
-      | Lam t'        -> DLam ( toDterm t' (level+1) last_ap)
+      | Ap (t1, t2)   -> 
+        let fap = 
+          if (first_ap >= 0) then first_ap else level
+        in 
+        DAp ( toDterm t1 level fap, toDterm t2 level fap )
+      | Lam t'        -> DLam ( toDterm t' (level+1) first_ap)
       | Var (Bound k) -> 
-        if ((level - k) <= last_ap) 
+        if ((level - k) <= first_ap) 
           then DVar ( DLevel (level - k) )
           else DVar ( DIndex k )
       | Var (Free s)  -> DVar ( DFree s )
     in
-    toDterm t 0 0
+    toDterm t 0 (-1)
 
   let rec from_dterm (t : dterm) : term = 
     let rec fromDterm t d : term = 
