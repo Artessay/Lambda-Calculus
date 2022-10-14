@@ -2,6 +2,7 @@ open Lambda
 
 [@@@warning "-39"] 
 [@@@warning "-27"]
+[@@@warning "-32"]
 
 (* Arithmetic *)
 
@@ -50,12 +51,20 @@ church' 函数接收一个非负整数 n, 返回一个 C.term,
 
 church' 0 = λ f . λ x . x
 church' 1 = λ f . λ x . f x
+church' 2 = λ f . λ x . f (f (x))
+church' 3 = λ f . λ x . f (f (f (x)))
 church' 4 = λ f . λ x . f (f (f (f x)))
 *)
 
 (* 下面的 C.Var "..." 只是用来占位的，你需要把它删掉，然后实现 church' 这个函数。
    下同。 *)
-let church' (n : int) : C.term = C.Var "Todo: write the function described above"
+let church' (n : int) : C.term = 
+   let rec aux n : C.term = 
+      if (n == 0) 
+         then C.Var "x" 
+         else C.Ap ( C.Var "f" , (aux (n-1)) )
+      in
+      C.Lam ( "f" , C.Lam ( "x" , (aux n) ) )
 
 (* locally nameless 的版本就是用原来的转过去. *)
 let church n = church' n |> to_locally_nameless
@@ -106,15 +115,25 @@ let succ' = clam "n" @@ clam "f" @@ clam "x" @@ (Var "f" $$ (Var "n" $$ Var "f" 
    注意，最后我们测试的是这个 lambda term 的功能（两数相加），而不是它本身的形式。
    有很多实现方法，任选一种即可。
    下同。 *)
-let plus' = C.Var "Todo"
+let plus' = clam "n" @@ clam "m" @@ ((Var "m" $$ Var "f") $$ (Var "n" $$ Var "f") $$ Var "x")
+
+(* church' 2 = λ f . λ x . f (f (x))
+   church' 3 = λ f . λ x . f (f (f (x)))
+   2 3 f x = ( λ x . 3 (3 (x)) ) f x *)
 
 (* try it *)
 (* equiv (plus cThree cFour) cSeven *)
+let plus n m = C.Ap( C.Ap(plus' , (from_locally_nameless n)) , (from_locally_nameless m)) |> to_locally_nameless
+let plus_test = equiv (plus cThree cFour) cSeven
 
 (* Define times (multiplication) *)
 (* times n m = ? , or
    times = λ n . λ m . ? *)
-let times' = C.Var "Todo"
+
+(* church' 2 = λ f . λ x . f (f (x))
+   church' 3 = λ f . λ x . f (f (f (x)))
+   2 (3f) x = ( λ x . 3f (3f (x)) ) x *)
+let times' = clam "n" @@ clam "m" @@ (Var "m" $$ (Var "n" $$ Var "f") $$ Var "x")
 
 (* try it *)
 (* equiv (times cThree cFour) cTwelf *)
@@ -131,8 +150,8 @@ let times' = C.Var "Todo"
 (* true = λ x . λ y . x *)
 let cTrue' = clam "x" @@ clam "y" @@ Var "x" 
 
-(* false = ? *)
-let cFalse' = C.Var "Todo"
+(* false = λ x . λ y . y *)
+let cFalse' = clam "x" @@ clam "y" @@ Var "y" 
 
 (* Define the "and" operation. 
    and false false === false
