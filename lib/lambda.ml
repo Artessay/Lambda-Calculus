@@ -458,7 +458,21 @@ module Good_nf = struct
      最终测试的目标之一.
   *)
 
-  let nf (t : term) : term = raise Todo
+  let nf (t : term) : term = 
+    let rec aux (t : dterm) (l : dterm list) : dterm =
+      match t with
+      | DAp (t1 , t2) -> aux t1 (t2 :: l) 
+      | DLam t' ->
+        begin
+          match l with
+          | [] -> DLam (aux t' [])
+          | u :: l' -> aux (dsubst_bound t' u) l'
+        end
+      | DVar _ ->
+        let norm_l = List.map l ~f:(fun t -> aux t []) in
+        List.fold norm_l ~init:t ~f:(fun u v -> DAp (u , v))
+      in
+    from_dterm (aux (to_dterm t) [])
 
 end
 
