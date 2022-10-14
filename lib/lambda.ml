@@ -391,10 +391,7 @@ let rec subst_bound (a : term) (b : term) : term =
 
     (*subst_bound (0 (λ . u 1)) b = b (λ . u b)*)
 
-let bound_test = subst_bound (Ap( Var(Bound 0) , Lam( Ap ( Var ( Free "u" ) , Var ( Bound 1 ) ) ) )) (Var (Free "b"))
-(* (λ. λ. x 1) x *)
-(* let subst_test = Ap(Lam( Lam( Ap (Var (Free "x"), Var(Bound 1)))), Var(Free "x"))
-let t_test = subst_bound subst_test (Var (Free "b"))  *)
+(* let bound_test = subst_bound (Ap( Var(Bound 0) , Lam( Ap ( Var ( Free "u" ) , Var ( Bound 1 ) ) ) )) (Var (Free "b")) *)
 
 (* 
 接下来就是激动人心的 normalization 了!
@@ -437,20 +434,42 @@ module Good_nf = struct
     | DAp of dterm * dterm
 
   (* 你可能需要的 dterm 版的 subst_bound *)
-  let dsubst_bound (a : dterm) (b : dterm) : dterm = raise Todo
+  let dsubst_bound (a : dterm) (b : dterm) : dterm = 
+    let rec substBound a b d : dterm = 
+      match a with
+      | DVar (DIndex k) -> 
+        if (phys_equal k d) then b else a
+      | DVar (DLevel l) -> a
+      | DVar (DFree s)  -> a
+      | DLam r         -> DLam (substBound r b (d+1))
+      | DAp (e1 , e2)  -> DAp (substBound e1 b d, substBound e2 b d)
+      in
+      substBound a b 0
 
   (* 你可能需要的 dterm 和 term 之间的转换函数 *)
   let rec to_dterm (t : term) : dterm = 
-    let rec toDterm t l : dterm = 
+    let rec toDterm t level last_ap : dterm = 
       match t with
-      | Ap (t1, t2)   -> DAp ( toDterm t1 l , toDterm t2 l )
-      | Lam t'        -> DLam ( toDterm t' (l+1) )
-      | Var (Bound k) -> DVar ( DLevel (l-1-k) )
+      | Ap (t1, t2)   -> DAp ( toDterm t1 level level, toDterm t2 level level )
+      | Lam t'        -> DLam ( toDterm t' (level+1) last_ap)
+      | Var (Bound k) -> 
+        if ((level - k) <= last_ap) 
+          then DVar ( DLevel (level - k) )
+          else DVar ( DIndex k )
       | Var (Free s)  -> DVar ( DFree s )
     in
-    toDterm t 0
+    toDterm t 0 0
 
-  let rec from_dterm (t : dterm) : term = raise Todo
+  let rec from_dterm (t : dterm) : term = 
+    let rec fromDterm t d : term = 
+      match t with
+      | DVar ( DIndex i ) -> Var ( Bound i )
+      | DVar ( DLevel l ) -> Var ( Bound (d-l-1))
+      | DVar ( DFree s )  -> Var ( Free s )
+      | DLam r            -> Lam ( fromDterm r (d+1) )
+      | DAp (e1, e2)      -> Ap  ( fromDterm e1 d , fromDterm e2 d )
+    in
+    fromDterm t 0
 
   (* 你要实现的 normalization 函数. 
      前面几个 "你可能需要的" 函数, 如果你不需要, 可以直接删掉.
@@ -482,3 +501,11 @@ let nf = Good_nf.nf
    那么当两个 normal form 语法等同 (长得一模一样) 时,
    它们在等式语义下就是等价的. 下面的函数判断此事. *)
 let equiv t t' = syn_equal (nf t) (nf t')
+
+(* λ y . λ z . (λ a . λ b . a) (z (λ c . c)) *)
+(* λ . λ . λ . 1 (λ . 0) *)
+let nf1 = nf (Lam(Lam( Ap( Lam(Lam(Var(Bound 1))) , Ap( Var(Bound 1) , t_id ) ))))
+
+(* (λ. λ. x 1) x *)
+(* λ. x x *)
+let nf2 = nf (Ap(Lam( Lam( Ap (Var (Free "x"), Var(Bound 1)))), Var(Free "x")))
