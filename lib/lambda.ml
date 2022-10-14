@@ -435,16 +435,42 @@ module Good_nf = struct
 
   (* 你可能需要的 dterm 版的 subst_bound *)
   let dsubst_bound (a : dterm) (b : dterm) : dterm = 
+    let reorder_term (t : dterm) : dterm = 
+      (let rec reorderTerm t level first_ap = 
+        match t with
+        | DAp (t1, t2)   -> 
+          let fap = 
+            if (first_ap >= 0) then first_ap else level
+          in 
+          DAp ( reorderTerm t1 level fap, reorderTerm t2 level fap )
+        | DLam t'        -> DLam ( reorderTerm t' (level+1) first_ap)
+        | DVar ( DLevel l ) -> 
+          if ( l <= level )
+            then DVar ( DLevel l )
+            else DVar ( DLevel (l-1) )
+          (* DVar  ( DLevel l ) *)
+          (* if (l <= first_ap) 
+            then DVar ( DLevel l )
+            else DVar ( DIndex (level - l) ) *)
+        | DVar ( DIndex k ) -> DVar ( DIndex k )
+          (* if ((level - k) <= first_ap) 
+            then DVar ( DLevel (level - k) )
+            else DVar ( DIndex k ) *)
+        | DVar ( DFree s )  -> DVar ( DFree s )
+      in
+      reorderTerm t 0 (-1))
+    in
     let rec substBound a b d : dterm = 
       match a with
       | DVar (DIndex k) -> 
         if (phys_equal k d) then b else a
-      | DVar (DLevel l) -> a
+      | DVar (DLevel l) -> 
+        if (phys_equal l 0) then b else a
       | DVar (DFree s)  -> a
       | DLam r         -> DLam (substBound r b (d+1))
       | DAp (e1 , e2)  -> DAp (substBound e1 b d, substBound e2 b d)
       in
-      substBound a b 0
+      reorder_term (substBound a b 0)
 
   (* 你可能需要的 dterm 和 term 之间的转换函数 *)
   let rec to_dterm (t : term) : dterm = 
@@ -513,3 +539,7 @@ let nf1 = nf (Lam(Lam( Ap( Lam(Lam(Var(Bound 1))) , Ap( Var(Bound 1) , t_id ) ))
 (* (λ. λ. x 1) x *)
 (* λ. x x *)
 let nf2 = nf (Ap(Lam( Lam( Ap (Var (Free "x"), Var(Bound 1)))), Var(Free "x")))
+
+(* λ y. λ z. (λ x. λ y. x) y z *)
+(* λ y. λ z. y *)
+let nf3 = nf (Lam(Lam(Ap( Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) , Var(Bound 0)))))
