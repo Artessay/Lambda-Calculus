@@ -336,7 +336,6 @@ let from_locally_nameless (t : term) : C.term =
    t |> from_locally_nameless |> to_locally_nameless = t
     *)
 
-    (* t |> from_locally_nameless |> to_locally_nameless = t *)
 
 (* let f_first = from_locally_nameless t_first
 let f_second = from_locally_nameless t_second
@@ -353,7 +352,13 @@ let f_with_free = from_locally_nameless t_with_free *)
 subst_free (λ . λ . x y 1) "x" b = (λ . λ . b y 1)
 *)
 
-let rec subst_free (a : term) (x : string) (b : term) : term = raise Todo
+let rec subst_free (a : term) (x : string) (b : term) : term = 
+  match a with
+  | Var (Bound k) -> a
+  | Var (Free s)  -> 
+    if String.equal s x then b else a
+  | Lam r         -> Lam (subst_free r x b)
+  | Ap (e1 , e2)  -> Ap (subst_free e1 x b, subst_free e2 x b)
 
 (* 
 另一种是用于 application 的计算.
@@ -361,7 +366,16 @@ let rec subst_free (a : term) (x : string) (b : term) : term = raise Todo
 现在实现的 subst_bound 满足 subst_bound a b = [b / x] a.
 例如, subst_bound (0 (λ . u 1)) b = b (λ . u b).
 *)
-let rec subst_bound (a : term) (b : term) : term = raise Todo
+let rec subst_bound (a : term) (b : term) : term = 
+  let rec substBound a b d : term = 
+    match a with
+    | Var (Bound k) -> 
+      if k = (d-1) then b else a
+    | Var (Free s)  -> a
+    | Lam r         -> Lam (substBound r b (d+1))
+    | Ap (e1 , e2)  -> Ap (substBound e1 b d, substBound e2 b d)
+    in
+  substBound a b 0
 
 (* 
 接下来就是激动人心的 normalization 了!
