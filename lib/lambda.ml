@@ -154,7 +154,7 @@ exception BadRepresentation of string
 let to_locally_nameless (t : C.term) : term = 
   let rec aux t d m : term =  (* t: term; d: depth; m: map*)
     match t with
-    | C.Var s -> (* Var ( Free s ) *)
+    | C.Var s -> 
       ( match Map.find m s with
       | None    -> Var ( Free s )
       | Some x  -> Var ( Bound (d-x-1) ) )
@@ -295,11 +295,53 @@ let rec free_var (t : term) : string list =
 
    *)
 
-let from_locally_nameless (t : term) : C.term = raise Todo
+module Fresh = struct
+  type t = {
+    base : string ;
+    counter : int ;
+    forbid : (string , String.comparator_witness) Set.t
+  }
+
+
+  let init ~base ~forbid = {base = base ; counter = 0 ; forbid = Set.of_list (module String) forbid}
+
+  let rec get {base = b ; counter = c ; forbid = f} : string * t = 
+    let name = b ^ (Int.to_string c) in
+    let nxt = {base = b ; counter = c + 1 ; forbid = f} in
+    if Set.mem f name 
+      then get nxt
+      else (name , nxt)
+end
+
+let from_locally_nameless (t : term) : C.term = 
+  let free_var_name = 
+    ( Fresh.init ~base: "x" ~forbid: (free_var t) ) 
+    in
+    let rec aux t d m f: C.term =  (* t: term; d: depth; m: map*)
+      match t with
+      | Var ( Bound k ) -> 
+        ( match Map.find m (d-k-1) with
+        | None    -> raise (BadRepresentation "some description")
+        | Some x  -> C.Var ( x ) )
+      | Var ( Free s )  -> C.Var s
+      | Lam r           -> 
+        let ( free_name, free_list ) = Fresh.get f 
+          in
+          C.Lam ( free_name , ( aux r (d+1) (Map.set m ~key:d ~data:free_name) free_list ) )
+      | Ap ( e1 , e2 )  -> C.Ap ( ( aux e1 d m f ) , ( aux e2 d m f ) )
+      in 
+    aux t 0 (Map.empty (module Int)) free_var_name
 
 (* write a QuickCheck to check 
    t |> from_locally_nameless |> to_locally_nameless = t
     *)
+
+    (* t |> from_locally_nameless |> to_locally_nameless = t *)
+
+(* let f_first = from_locally_nameless t_first
+let f_second = from_locally_nameless t_second
+let f_id = from_locally_nameless t_id
+let f_with_free = from_locally_nameless t_with_free *)
 
 (* 
 接下来就是激动人心的 substitution 了!
