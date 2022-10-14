@@ -352,6 +352,7 @@ let f_with_free = from_locally_nameless t_with_free *)
 subst_free (λ . λ . x y 1) "x" b = (λ . λ . b y 1)
 *)
 
+
 let rec subst_free (a : term) (x : string) (b : term) : term = 
   match a with
   | Var (Bound k) -> a
@@ -370,12 +371,28 @@ let rec subst_bound (a : term) (b : term) : term =
   let rec substBound a b d : term = 
     match a with
     | Var (Bound k) -> 
+      if (phys_equal k d) then b else a
+    | Var (Free s)  -> a
+    | Lam r         -> Lam (substBound r b (d+1))
+    | Ap (e1 , e2)  -> subst_bound (substBound e1 b d) (substBound e2 b d)  (* Ap (substBound e1 b d, substBound e2 b d) *)
+    in
+    substBound a b 0
+  (* let rec substBound a b d : term = 
+    match a with
+    | Var (Bound k) -> 
       if (phys_equal k (d-1)) then b else a
     | Var (Free s)  -> a
     | Lam r         -> Lam (substBound r b (d+1))
-    | Ap (e1 , e2)  -> Ap (substBound e1 b d, substBound e2 b d)  (* subst_bound (substBound e1 b d) (substBound e2 b d) *)
+    | Ap (e1 , e2)  -> subst_bound (substBound e1 b d) (substBound e2 b d)  (* Ap (substBound e1 b d, substBound e2 b d) *)
     in
-  substBound a b 0
+    match a with
+    | Lam r -> substBound r b 1
+    | _     -> substBound a b 0 *)
+
+
+(* (λ. λ. x 1) x *)
+(* let subst_test = Ap(Lam( Lam( Ap (Var (Free "x"), Var(Bound 1)))), Var(Free "x"))
+let t_test = subst_bound subst_test (Var (Free "b"))  替换完成之后 第一个 λ 应该就要没有了 *)
 
 (* 
 接下来就是激动人心的 normalization 了!
@@ -430,7 +447,7 @@ module Good_nf = struct
       | Var (Free s)  -> DVar ( DFree s )
     in
     toDterm t 0
-    
+
   let rec from_dterm (t : dterm) : term = raise Todo
 
   (* 你要实现的 normalization 函数. 
