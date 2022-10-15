@@ -35,7 +35,7 @@ module Good_nf :
   sig
     type dvar = DIndex of int | DLevel of int | DFree of string
     type dterm = DVar of dvar | DLam of dterm | DAp of dterm * dterm
-    val dsubst_bound : dterm -> dterm -> dterm
+    val dsubst_bound : dterm -> dterm -> int -> dterm
     val to_dterm : term -> dterm
     val from_dterm : dterm -> term
     val nf : term -> term

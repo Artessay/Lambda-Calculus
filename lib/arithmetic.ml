@@ -115,7 +115,9 @@ let succ' = clam "n" @@ clam "f" @@ clam "x" @@ (Var "f" $$ (Var "n" $$ Var "f" 
    注意，最后我们测试的是这个 lambda term 的功能（两数相加），而不是它本身的形式。
    有很多实现方法，任选一种即可。
    下同。 *)
-let plus' = clam "n" @@ clam "m" @@ ((Var "m" $$ Var "f") $$ (Var "n" $$ Var "f") $$ Var "x")
+
+   (* + m n f x = m f (n f x) *)
+let plus' = clam "n" @@ clam "m" @@ (Var "m" $$ Var "f" $$ (Var "n" $$ Var "f" $$ Var "x"))
 
 (* church' 2 = λ f . λ x . f (f (x))
    church' 3 = λ f . λ x . f (f (f (x)))
@@ -133,6 +135,7 @@ let plus_test = equiv (plus cThree cFour) cSeven
 (* church' 2 = λ f . λ x . f (f (x))
    church' 3 = λ f . λ x . f (f (f (x)))
    2 (3f) x = ( λ x . 3f (3f (x)) ) x *)
+   (* * m n f x = m (n f) x *)
 let times' = clam "n" @@ clam "m" @@ (Var "m" $$ (Var "n" $$ Var "f") $$ Var "x")
 
 (* try it *)
@@ -160,7 +163,7 @@ let cFalse' = clam "x" @@ clam "y" @@ Var "y"
    and true true   === true  *)
 (* and x y = ?
    and = λ x . λ y . ? *)
-let bool_and' = C.Var "Todo"
+let bool_and' = clam "g" @@ clam "h" @@ (Var "g" $$ Var "h" $$ cFalse')
 
 (* Define is_zero. 
    is_zero 0 === true
