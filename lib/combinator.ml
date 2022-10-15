@@ -2,6 +2,8 @@ open Lambda
 
 [@@@warning "-39"] 
 [@@@warning "-27"]
+[@@@warning "-32"]
+[@@@warning "-37"]
 
 (* Bonus: Combinator Theory *)
 
@@ -188,7 +190,7 @@ module Systematic_SK = struct
     | Var' of int
     | Lam' of lambda_sk
     | Ap' of lambda_sk * lambda_sk
-    (* | App' of lambda_sk * lambda_sk  *)
+    | App' of lambda_sk * lambda_sk 
     | S'
     | K'
     | I'
@@ -206,12 +208,49 @@ module Systematic_SK = struct
     | S'  -> S
     | K'  -> K
     | I'  -> App ( App ( S , K ) , K )
-    (* | App' (e1 , e2) -> App (internal_to_sk e1 , internal_to_sk e2) *)
+    | Ap' (e1 , e2)  -> App (internal_to_sk e1 , internal_to_sk e2)
+    | App' (e1 , e2) -> App (internal_to_sk e1 , internal_to_sk e2)
     | _   -> raise HaveFreeVar
 
+  let isBound (t : lambda_sk) : bool =
+    let rec fv t d = 
+      match t with
+      | Var' x -> if (x == d) then true else false
+      | Lam' r -> fv r (d+1)
+      | Ap' (e1 , e2) -> ((fv e1 d) || (fv e2 d))
+      | App' (e1 , e2) -> ((fv e1 d) || (fv e2 d))
+      | _ -> false
+    in
+    fv t 0
+
+  let rec string_of_ls l : string = 
+    match l with
+    | Var' x -> Int.to_string x
+    | Ap' (e1, e2) -> "(" ^ (string_of_ls e1) ^ (string_of_ls e2) ^ ")"
+    | Lam' (e) -> "\\." ^ (string_of_ls e)
+    | S'  -> "S"
+    | K'  -> "K"
+    | I'  -> "I"
+    | App' (e1, e2) ->  "(T " ^ (string_of_ls e1) ^ (string_of_ls e2) ^ ")"
+
   let rec convert (t : lambda_sk) : lambda_sk = 
+    (* let _ = 
+      print_endline (string_of_ls t)
+    in *)
+    let rec dec_index r = 
+      match r with
+      | Var' x' -> Var' (x'-1)
+      | Lam' r' -> dec_index r'
+      | Ap' (e1', e2') -> Ap' (dec_index e1', dec_index e2')
+      | App' (e1', e2') -> App' (dec_index e1', dec_index e2')
+      | S' -> S'
+      | K' -> K'
+      | I' -> I'
+    in
     match t with
     | Var' x' -> Var' x'
+    | Lam' r' when not (isBound r') ->
+      Ap' (K' , convert (dec_index r')) (* after ap, index - 1 *)
     | Lam' (Var' x') -> (* \. 0 *)
       if (x' == 0) then I' else raise HaveFreeVar
     | Lam' (Lam' r') ->
@@ -227,4 +266,13 @@ module Systematic_SK = struct
   let from_lambda (t : term) : expr = 
     internal_to_sk ( convert ( lambda_to_internal t ) )
 
+  let rec string_of_ski = function
+    | K' -> "K"
+    | S' -> "S"
+    | T (x, y) -> "T(" ^ (string_of_ski x) ^ "," ^ (string_of_ski y) ^ ")"
 end
+
+let l_first = Systematic_SK.from_lambda (t_first |> to_locally_nameless)
+let l_second = Systematic_SK.from_lambda (t_second |> to_locally_nameless)
+let l_id = Systematic_SK.from_lambda (t_id |> to_locally_nameless)
+let l_ap = Systematic_SK.from_lambda (t_ap |> to_locally_nameless)
