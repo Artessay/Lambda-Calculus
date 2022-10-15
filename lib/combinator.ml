@@ -179,6 +179,52 @@ module Systematic_SK = struct
      - 如果你发现输入的 t 不是 closed term,
        请抛出上面定义的 exception HaveFreeVar (即 raise HaveFreeVar).
   *)
-  let from_lambda (t : term) : expr = S (* Todo *)
+
+  (* 这里参考了一些网站的资料与实现
+     reference: https://en.wikipedia.org/wiki/Combinatory_logic#Completeness_of_the_S-K_basis *)
+  
+  (* 首先，我们定义一个能够兼容lambda 和 SK 的类型存储中间转换结果 *)
+  type lambda_sk = 
+    | Var' of int
+    | Lam' of lambda_sk
+    | Ap' of lambda_sk * lambda_sk
+    (* | App' of lambda_sk * lambda_sk  *)
+    | S'
+    | K'
+    | I'
+  
+  (* 并且给出两个类型各自和中间类型的转换 *)
+  let rec lambda_to_internal (t : term) : lambda_sk = 
+    match t with
+    | Var (Free s)  -> raise HaveFreeVar
+    | Var (Bound k) -> Var' k
+    | Lam r         -> Lam' (lambda_to_internal r)
+    | Ap (e1 , e2)  -> Ap' ((lambda_to_internal e1) , (lambda_to_internal e2))
+
+  let rec internal_to_sk (t : lambda_sk) : expr = 
+    match t with
+    | S'  -> S
+    | K'  -> K
+    | I'  -> App ( App ( S , K ) , K )
+    (* | App' (e1 , e2) -> App (internal_to_sk e1 , internal_to_sk e2) *)
+    | _   -> raise HaveFreeVar
+
+  let rec convert (t : lambda_sk) : lambda_sk = 
+    match t with
+    | Var' x' -> Var' x'
+    | Lam' (Var' x') -> (* \. 0 *)
+      if (x' == 0) then I' else raise HaveFreeVar
+    | Lam' (Lam' r') ->
+      convert (Lam' (convert (Lam' r')))
+    | Lam' (Ap' (e1' , e2')) ->
+      Ap' (Ap' (S' , convert (Lam' e1')) , convert (Lam' e2'))
+    | Ap' (e1', e2') -> Ap' (convert e1', convert e2')
+    | S' -> S'
+    | K' -> K'
+    | I' -> I'
+    | _  -> raise HaveFreeVar
+
+  let from_lambda (t : term) : expr = 
+    internal_to_sk ( convert ( lambda_to_internal t ) )
 
 end

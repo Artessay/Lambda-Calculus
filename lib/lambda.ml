@@ -295,7 +295,7 @@ let rec free_var (t : term) : string list =
 
    *)
 
-module Fresh = struct
+(* module Fresh = struct
   type t = {
     base : string ;
     counter : int ;
@@ -311,7 +311,7 @@ module Fresh = struct
     if Set.mem f name 
       then get nxt
       else (name , nxt)
-end
+end *)
 
 let from_locally_nameless (t : term) : C.term = 
   let free_var_name = 
