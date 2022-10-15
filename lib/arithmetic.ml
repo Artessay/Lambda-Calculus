@@ -217,7 +217,8 @@ let is_zero' = clam "n" @@ (Var "n" $$ ( clam "x" @@ cFalse' ) $$ cTrue' )
 
 (* pred = λ n . ? *)
 (* PRED == λk.( k (λp.λu.u (SUCC(p TRUE)) (p TRUE) ) (λu.u ZERO ZERO) ) FALSE *)
-let pred' = clam "n" @@ (( Var "n" $$ (clam "p" @@ clam "u" @@ (Var "u" $$ (succ' $$ (Var "p" $$ cTrue'))) $$ (clam "u" @@ (Var "u" $$ cZero' $$ cZero'))) ) $$ cFalse')
+let pred' = clam "n" @@ clam "f" @@ clam "x" @@ (Var "n" $$ (clam "g" @@ clam "h" @@ (Var "h" $$ (Var "g" $$ Var "f"))) $$ (clam "u" @@ Var "x") $$ (clam "u" @@ Var "u"))
+(* clam "n" @@ (( Var "n" $$ (clam "p" @@ clam "u" @@ (Var "u" $$ (succ' $$ (Var "p" $$ cTrue'))) $$ (clam "u" @@ (Var "u" $$ cZero' $$ cZero'))) ) $$ cFalse') *)
 
 (* Define the Y combinator.
    If you don't understand the idea behind the Y combinator, 
@@ -226,15 +227,16 @@ let pred' = clam "n" @@ (( Var "n" $$ (clam "p" @@ clam "u" @@ (Var "u" $$ (succ
 let y' = clam "p" @@ ((clam "f" @@ (Var "p" $$ (Var "f" $$ Var "f"))) $$ (clam "f" @@ (Var "p" $$ (Var "f" $$ Var "f"))))
 
 (* sum_u = ? *)
-let sum_u' = C.Var "Todo"
+let sum_u' = clam "f" @@ clam "n" @@ (is_zero' $$ Var "n" $$ cZero' $$ 
+   (plus' $$ Var "n" $$ (Var "f" $$ (pred' $$ Var "n"))) )
 
 let sum' = y' $$ sum_u'
 
 (* sum2 = λ n . 2 * (sum n) *)
-let sum2' = C.Var "Todo"
+let sum2' = clam "n" @@ (times' $$ cTwo' $$ (sum' $$ Var "n"))
 
 (* calc = λ n . n * (n + 1) *)
-let calc' = C.Var "Todo"
+let calc' = clam "n" @@ (times' $$ Var "n" $$ (succ' $$ Var "n"))
 
 let sum = sum' |> to_locally_nameless
 let sum2 = sum2' |> to_locally_nameless
