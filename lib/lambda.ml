@@ -458,7 +458,6 @@ module Good_nf = struct
       | DVar (DIndex k) -> 
         if (phys_equal k d) then b else a
       | DVar (DLevel l) -> a (* level is real level ! *)
-        (* if (phys_equal l 0) then b else a *)
       | DVar (DFree s)  -> a
       | DLam r         -> DLam (substBound r b (d+1))
       | DAp (e1 , e2)  -> DAp (substBound e1 b d, substBound e2 b d)
@@ -592,5 +591,5 @@ let nf4 = nf (Ap(Lam(Ap(Ap(Var(Bound 0) , Var(Free "x")) , Var(Free "y"))) , Lam
       Good_nf.DVar (Good_nf.DIndex 0))))) *)
 
 (* let snf5 = Good_nf.test_Dterm (Ap(Lam(Ap(Var(Bound 0) , Var(Bound 0))), Lam(Lam(Ap(Var(Bound 1) , Var(Bound 0)))))) *)
-(* let s3nf5 = Good_nf.dsubst_bound () *)
+
 let nf5 = nf (Ap(Lam(Ap(Var(Bound 0) , Var(Bound 0))), Lam(Lam(Ap(Var(Bound 1) , Var(Bound 0))))))

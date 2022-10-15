@@ -51,8 +51,8 @@ church' 函数接收一个非负整数 n, 返回一个 C.term,
 
 church' 0 = λ f . λ x . x
 church' 1 = λ f . λ x . f x
-church' 2 = λ f . λ x . f (f (x))
-church' 3 = λ f . λ x . f (f (f (x)))
+church' 2 = λ f . λ x . f (f x)
+church' 3 = λ f . λ x . f (f (f x))
 church' 4 = λ f . λ x . f (f (f (f x)))
 *)
 
@@ -117,7 +117,7 @@ let succ' = clam "n" @@ clam "f" @@ clam "x" @@ (Var "f" $$ (Var "n" $$ Var "f" 
    下同。 *)
 
    (* + m n f x = m f (n f x) *)
-let plus' = clam "n" @@ clam "m" @@ (Var "m" $$ Var "f" $$ (Var "n" $$ Var "f" $$ Var "x"))
+let plus' = clam "n" @@ clam "m" @@ clam "f" @@ clam "x" @@ (Var "m" $$ Var "f" $$ (Var "n" $$ Var "f" $$ Var "x"))
 
 (* church' 2 = λ f . λ x . f (f (x))
    church' 3 = λ f . λ x . f (f (f (x)))
@@ -125,8 +125,8 @@ let plus' = clam "n" @@ clam "m" @@ (Var "m" $$ Var "f" $$ (Var "n" $$ Var "f" $
 
 (* try it *)
 (* equiv (plus cThree cFour) cSeven *)
-let plus n m = C.Ap( C.Ap(plus' , (from_locally_nameless n)) , (from_locally_nameless m)) |> to_locally_nameless
-let plus_test = equiv (plus cThree cFour) cSeven
+(* let plus n m = C.Ap( C.Ap(plus' , (from_locally_nameless n)) , (from_locally_nameless m)) |> to_locally_nameless
+let plus_test = equiv (plus cThree cFour) cSeven *)
 
 (* Define times (multiplication) *)
 (* times n m = ? , or
@@ -136,7 +136,7 @@ let plus_test = equiv (plus cThree cFour) cSeven
    church' 3 = λ f . λ x . f (f (f (x)))
    2 (3f) x = ( λ x . 3f (3f (x)) ) x *)
    (* * m n f x = m (n f) x *)
-let times' = clam "n" @@ clam "m" @@ (Var "m" $$ (Var "n" $$ Var "f") $$ Var "x")
+let times' = clam "n" @@ clam "m" @@ clam "f" @@ clam "x" @@ (Var "m" $$ (Var "n" $$ Var "f") $$ Var "x")
 
 (* try it *)
 (* equiv (times cThree cFour) cTwelf *)
@@ -173,7 +173,38 @@ let bool_and' = clam "g" @@ clam "h" @@ (Var "g" $$ Var "h" $$ cFalse')
    This is a little hard. You need to think. *)
 (* is_zero n = ?
    is_zero = λ n . ?` *)
-let is_zero' = C.Var "Todo"
+
+(* We want iszero applied to (the representation of) zero to evaluate to true, 
+   and applied to anything other than zero to evaluate to false. 
+   Note that ZERO is a function of two arguments; ISZERO needs to "get rid" of that function by applying it to the appropriate two values so that the result is TRUE; 
+   i.e., we want ISZERO to be of the form:
+      λf.f _ _
+   What should the missing values be? 
+   Well, ZERO is the function that returns its second argument, 
+   and we want ISZERO applied to ZERO to evaluate to TRUE, so the second argument better be TRUE. 
+
+   cZero' 是一个接收两个参数，并返回第二个参数的函数，
+   所以对于 λf.f _ _ 形式的表达式，第二个空最好是 cTrue'
+
+   The numbers other than ZERO are functions that apply their first argument to the second argument some number of times, 
+   and for all of those numbers we want the final result to be FALSE. 
+   So the first argument needs to be a lambda term g 
+      such that 
+         g applied to TRUE is FALSE; 
+         g applied to (g applied to TRUE) is FALSE, 
+         etc. 
+   The answer is actually very simple: 
+      make g be the function that ignores its argument and returns FALSE:
+         g == λx.FALSE
+
+   而对于church演算中的 f ，当 n > 0 时， 表达式里至少有一个 f x，为 n f x
+   如果能够让 f 无论接收什么参数均返回 cFalse'，那么无论 f x , f ( f x ) 还是其他的均为flase了
+   也就是说，第一个空中的 f = λx.cFalse'
+
+   And now we know that ISZERO should be defined like this:
+      λf.f(λx.FALSE)TRUE
+*)
+let is_zero' = clam "n" @@ (Var "n" $$ ( clam "x" @@ cFalse' ) $$ cTrue' )
 
 (* Define predecessor.
    pred 0 === anything (not important)
@@ -185,7 +216,8 @@ let is_zero' = C.Var "Todo"
    This definition is not trivial. You need to think. *)
 
 (* pred = λ n . ? *)
-let pred' = C.Var "Todo"
+(* PRED == λk.( k (λp.λu.u (SUCC(p TRUE)) (p TRUE) ) (λu.u ZERO ZERO) ) FALSE *)
+let pred' = clam "n" @@ (( Var "n" $$ (clam "p" @@ clam "u" @@ (Var "u" $$ (succ' $$ (Var "p" $$ cTrue'))) $$ (clam "u" @@ (Var "u" $$ cZero' $$ cZero'))) ) $$ cFalse')
 
 (* Define the Y combinator.
    If you don't understand the idea behind the Y combinator, 
