@@ -266,10 +266,10 @@ module Systematic_SK = struct
   let from_lambda (t : term) : expr = 
     internal_to_sk ( convert ( lambda_to_internal t ) )
 
-  let rec string_of_ski = function
+  (* let rec string_of_ski = function
     | K -> "K"
     | S -> "S"
-    | App (x, y) -> "T(" ^ (string_of_ski x) ^ "," ^ (string_of_ski y) ^ ")"
+    | App (x, y) -> "T(" ^ (string_of_ski x) ^ "," ^ (string_of_ski y) ^ ")" *)
 end
 
 (*
