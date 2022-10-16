@@ -267,12 +267,14 @@ module Systematic_SK = struct
     internal_to_sk ( convert ( lambda_to_internal t ) )
 
   let rec string_of_ski = function
-    | K' -> "K"
-    | S' -> "S"
-    | T (x, y) -> "T(" ^ (string_of_ski x) ^ "," ^ (string_of_ski y) ^ ")"
+    | K -> "K"
+    | S -> "S"
+    | App (x, y) -> "T(" ^ (string_of_ski x) ^ "," ^ (string_of_ski y) ^ ")"
 end
 
+(*
 let l_first = Systematic_SK.from_lambda (t_first |> to_locally_nameless)
 let l_second = Systematic_SK.from_lambda (t_second |> to_locally_nameless)
 let l_id = Systematic_SK.from_lambda (t_id |> to_locally_nameless)
 let l_ap = Systematic_SK.from_lambda (t_ap |> to_locally_nameless)
+*)

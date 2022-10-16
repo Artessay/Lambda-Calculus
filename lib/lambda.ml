@@ -295,7 +295,7 @@ let rec free_var (t : term) : string list =
 
    *)
 
-(* module Fresh = struct
+module Fresh = struct
   type t = {
     base : string ;
     counter : int ;
@@ -311,7 +311,7 @@ let rec free_var (t : term) : string list =
     if Set.mem f name 
       then get nxt
       else (name , nxt)
-end *)
+end
 
 let from_locally_nameless (t : term) : C.term = 
   let free_var_name = 
@@ -432,6 +432,31 @@ module Good_nf = struct
     | DVar of dvar
     | DLam of dterm
     | DAp of dterm * dterm
+  
+  let rec pretty (t : dterm) = 
+    match t with
+    | DVar (DIndex i) -> Printf.sprintf " I%d " i
+    | DVar (DLevel l) -> Printf.sprintf " L%d " l
+    | DVar (DFree  s) -> " " ^ s ^ " "
+    | DAp (t1 , t2) -> 
+      let par1 = begin
+        match t1 with
+        | DVar _ | DAp _ -> false
+        | DLam _ -> true
+      end in
+      let par2 = begin
+        match t2 with
+        | DVar _ -> false
+        | DAp _ | DLam _ -> true
+      end in
+      let s1 = pretty t1 in
+      let s2 = pretty t2 in
+      let s1' = if par1 then "(" ^ s1 ^ ")" else s1 in
+      let s2' = if par2 then "(" ^ s2 ^ ")" else s2 in
+      s1' ^ " " ^ s2'
+    | DLam (t') -> 
+      let s' = pretty t' in
+      Printf.sprintf "λ . %s" s'
 
   (* 你可能需要的 dterm 版的 subst_bound *)
   let dsubst_bound (a : dterm) (b : dterm) (entry : int) : dterm = 
@@ -439,8 +464,8 @@ module Good_nf = struct
       (let rec reorderTerm t d first_ap enter = 
         match t with
         | DAp (t1, t2)   -> 
-          let fap = 
-            if (first_ap >= 0) then first_ap else d
+          let fap = d
+            (* if (first_ap >= 0) then first_ap else d *)
           in 
           DAp ( reorderTerm t1 d fap enter, reorderTerm t2 d fap enter )
         | DLam t'        -> DLam ( reorderTerm t' (d+1) first_ap enter )
@@ -451,26 +476,30 @@ module Good_nf = struct
             else DVar ( DIndex k )
         | DVar ( DFree s )  -> DVar ( DFree s )
       in
+      (* let _ = 
+        print_endline (pretty t)
+      in *)
       reorderTerm t 0 (-1) entry')
     in
-    let rec substBound a b d : dterm = 
+    let rec substBound a b d enter : dterm = 
       match a with
       | DVar (DIndex k) -> 
         if (phys_equal k d) then b else a
-      | DVar (DLevel l) -> a (* level is real level ! *)
+      | DVar (DLevel l) -> (* compare with enter level *)
+        if (phys_equal l enter) then b else a (* level is real level ! *)
       | DVar (DFree s)  -> a
-      | DLam r         -> DLam (substBound r b (d+1))
-      | DAp (e1 , e2)  -> DAp (substBound e1 b d, substBound e2 b d)
+      | DLam r         -> DLam (substBound r b (d+1) enter)
+      | DAp (e1 , e2)  -> DAp (substBound e1 b d enter, substBound e2 b d enter)
       in
-      reorder_term (substBound a b 0) entry
+      reorder_term (substBound a b 0 entry) entry
 
   (* 你可能需要的 dterm 和 term 之间的转换函数 *)
   let rec to_dterm (t : term) : dterm = 
     let rec toDterm t d first_ap : dterm = 
       match t with
       | Ap (t1, t2)   -> 
-        let fap = 
-          if (first_ap >= 0) then first_ap else d
+        let fap = d
+          (* if (first_ap >= 0) then first_ap else d *)
         in 
         DAp ( toDterm t1 d fap, toDterm t2 d fap )
       | Lam t'        -> DLam ( toDterm t' (d+1) first_ap)
@@ -501,6 +530,9 @@ module Good_nf = struct
 
   let nf (t : term) : term = 
     let rec aux (t : dterm) (l : dterm list) (d : int) : dterm =
+      (* let _ = 
+        print_endline (pretty t)
+      in *)
       match t with
       | DAp (t1 , t2) -> aux t1 (t2 :: l) d
       | DLam t' ->
