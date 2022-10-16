@@ -433,7 +433,7 @@ module Good_nf = struct
     | DLam of dterm
     | DAp of dterm * dterm
   
-  let rec pretty (t : dterm) = 
+  (* let rec pretty (t : dterm) = 
     match t with
     | DVar (DIndex i) -> Printf.sprintf " I%d " i
     | DVar (DLevel l) -> Printf.sprintf " L%d " l
@@ -456,7 +456,7 @@ module Good_nf = struct
       s1' ^ " " ^ s2'
     | DLam (t') -> 
       let s' = pretty t' in
-      Printf.sprintf "λ . %s" s'
+      Printf.sprintf "λ . %s" s' *)
 
   (* 你可能需要的 dterm 版的 subst_bound *)
   let dsubst_bound (a : dterm) (b : dterm) (entry : int) : dterm = 

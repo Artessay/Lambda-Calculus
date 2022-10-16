@@ -223,7 +223,7 @@ module Systematic_SK = struct
     in
     fv t 0
 
-  let rec string_of_ls l : string = 
+  (* let rec string_of_ls l : string = 
     match l with
     | Var' x -> Int.to_string x
     | Ap' (e1, e2) -> "(" ^ (string_of_ls e1) ^ (string_of_ls e2) ^ ")"
@@ -231,7 +231,7 @@ module Systematic_SK = struct
     | S'  -> "S"
     | K'  -> "K"
     | I'  -> "I"
-    | App' (e1, e2) ->  "(T " ^ (string_of_ls e1) ^ (string_of_ls e2) ^ ")"
+    | App' (e1, e2) ->  "(T " ^ (string_of_ls e1) ^ (string_of_ls e2) ^ ")" *)
 
   let rec convert (t : lambda_sk) : lambda_sk = 
     (* let _ = 
