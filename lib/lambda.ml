@@ -433,7 +433,7 @@ module Good_nf = struct
     | DLam of dterm
     | DAp of dterm * dterm
   
-  (* let rec pretty (t : dterm) = 
+  let rec pretty (t : dterm) = 
     match t with
     | DVar (DIndex i) -> Printf.sprintf " I%d " i
     | DVar (DLevel l) -> Printf.sprintf " L%d " l
@@ -456,7 +456,7 @@ module Good_nf = struct
       s1' ^ " " ^ s2'
     | DLam (t') -> 
       let s' = pretty t' in
-      Printf.sprintf "λ . %s" s' *)
+      Printf.sprintf "λ . %s" s'
 
   (* 你可能需要的 dterm 版的 subst_bound *)
   let dsubst_bound (a : dterm) (b : dterm) (entry : int) : dterm = 
@@ -486,7 +486,14 @@ module Good_nf = struct
       | DAp (e1, e2)      -> DAp (dsubstBound e1 b d, dsubstBound e2 b d)
       | DLam r            -> DLam (dsubstBound r b (d+1))
     in
-    level_to_index (dsubstBound (index_to_level a 0 entry) (index_to_level b 0 entry) 0) 0 entry
+    (* let _ = 
+      print_endline ("a: "^(pretty a));
+      print_endline ("b: "^(pretty b));
+      print_endline (pretty (index_to_level a 1 entry));
+      print_endline (pretty (index_to_level b 0 entry));
+      print_endline (pretty (level_to_index (dsubstBound (index_to_level a 0 entry) (index_to_level b 0 entry) 0) 0 entry))
+    in *)
+    level_to_index (dsubstBound (index_to_level a 1 entry) (index_to_level b 0 entry) 0) 0 entry
 
   (* 你可能需要的 dterm 和 term 之间的转换函数 *)
   let rec to_dterm (t : term) : dterm = 
