@@ -460,6 +460,282 @@ module Good_nf = struct
 
   (* 你可能需要的 dterm 版的 subst_bound *)
   let dsubst_bound (a : dterm) (b : dterm) (entry : int) : dterm = 
+    let rec level_to_index (t : dterm) (d : int) (enter : int) : dterm = 
+      match t with
+      | DVar ( DIndex i ) -> t
+      | DVar ( DLevel l ) -> DVar ( DIndex (enter - l + d - 1) )
+      | DVar ( DFree  x ) -> t
+      | DLam r        -> DLam ( level_to_index r (d+1) enter )
+      | DAp (e1, e2)  -> DAp ( level_to_index e1 d enter , level_to_index e2 d enter )
+    in
+    let rec index_to_level (t : dterm) (d : int) (enter : int) : dterm = 
+      match t with
+      | DVar ( DIndex i ) -> 
+        if (i < d) then t else DVar ( DLevel (enter + d - i - 1) )
+      | DVar ( DLevel l ) -> raise (BadRepresentation "Level should not be here")
+      | DVar ( DFree  x ) -> t
+      | DLam r        -> DLam ( index_to_level r (d+1) enter )
+      | DAp (e1, e2)  -> DAp ( index_to_level e1 d enter , index_to_level e2 d enter )
+    in
+    let rec dsubstBound (a : dterm) (b : dterm) (d : int) : dterm = 
+      match a with
+      | DVar ( DIndex i ) ->
+        if (phys_equal i d) then b else a
+      | DVar ( DLevel l ) -> a
+      | DVar ( DFree  x ) -> a
+      | DAp (e1, e2)      -> DAp (dsubstBound e1 b d, dsubstBound e2 b d)
+      | DLam r            -> DLam (dsubstBound r b (d+1))
+    in
+    level_to_index (dsubstBound (index_to_level a 0 entry) (index_to_level b 0 entry) 0) 0 entry
+
+  (* 你可能需要的 dterm 和 term 之间的转换函数 *)
+  let rec to_dterm (t : term) : dterm = 
+    match t with
+    | Ap (t1, t2)   -> DAp  ( to_dterm t1, to_dterm t2 )
+    | Lam t'        -> DLam ( to_dterm t' )
+    | Var (Bound k) -> DVar ( DIndex k )
+    | Var (Free s)  -> DVar ( DFree s )
+
+  let rec from_dterm (t : dterm) : term = 
+    let rec fromDterm t d : term = 
+      match t with
+      | DVar ( DIndex i ) -> Var ( Bound i )
+      | DVar ( DLevel l ) -> Var ( Bound (d-l-1) ) (* level is level ! *)
+      | DVar ( DFree s )  -> Var ( Free s )
+      | DLam r            -> Lam ( fromDterm r (d+1) )
+      | DAp (e1, e2)      -> Ap  ( fromDterm e1 d , fromDterm e2 d )
+    in
+    fromDterm t 0
+
+  (* 你要实现的 normalization 函数. 
+     前面几个 "你可能需要的" 函数, 如果你不需要, 可以直接删掉.
+     总之, 你需要实现一个正确的 nf : term -> term, 它也是
+     最终测试的目标之一.
+  *)
+
+  let nf (t : term) : term = 
+    let rec aux (t : dterm) (l : dterm list) (d : int) : dterm =
+      match t with
+      | DAp (t1 , t2) -> aux t1 (t2 :: l) d
+      | DLam t' ->
+        begin
+          match l with
+          | [] -> DLam (aux t' [] (d+1))
+          | u :: l' -> aux (dsubst_bound t' u d) l' d
+        end
+      | DVar _ ->
+        let norm_l = List.map l ~f:(fun t -> aux t [] d) in
+        List.fold norm_l ~init:t ~f:(fun u v -> DAp (u , v))
+      in
+    from_dterm (aux (to_dterm t) [] 0)
+
+  (* let rec test_Dterm (t : term) : dterm = 
+    let rec aux (t : dterm) (l : dterm list) (d : int) : dterm =
+      match t with
+      | DAp (t1 , t2) -> aux t1 (t2 :: l) d
+      | DLam t' ->
+        begin
+          match l with
+          | [] -> DLam (aux t' [] (d+1))
+          | u :: l' -> aux (dsubst_bound t' u d) l' d
+        end
+      | DVar _ ->
+        let norm_l = List.map l ~f:(fun t -> aux t [] d) in
+        List.fold norm_l ~init:t ~f:(fun u v -> DAp (u , v))
+      in
+    (aux (to_dterm t) [] 0) *)
+
+end
+
+let nf = Good_nf.nf
+
+(* 如果两个 lambda term 都有 normal form, 
+   那么当两个 normal form 语法等同 (长得一模一样) 时,
+   它们在等式语义下就是等价的. 下面的函数判断此事. *)
+let equiv t t' = syn_equal (nf t) (nf t')
+
+(* λ y . λ z . (λ a . λ b . a) (z (λ c . c)) *)
+(* λ . λ . λ . 1 (λ . 0) *)
+let nf1 = nf (Lam(Lam( Ap( Lam(Lam(Var(Bound 1))) , Ap( Var(Bound 0) , t_id ) ))))
+
+(* (λ. λ. x 1) x *)
+(* λ. x x *)
+let nf2 = nf (Ap(Lam( Lam( Ap (Var (Free "x"), Var(Bound 1)))), Var(Free "x")))
+
+(* λ y. λ z. (λ x. λ y. x) y z *)
+(* λ y. λ z. y *)
+let nf3 = nf (Lam(Lam(Ap( Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) , Var(Bound 0)))))
+
+(* (λ .0 x y)(λ .λ .1) *)
+(* x *)
+let nf4 = nf (Ap(Lam(Ap(Ap(Var(Bound 0) , Var(Free "x")) , Var(Free "y"))) , Lam(Lam(Var(Bound 1)))))
+
+(* (λ .0 0)(λ .λ .1 0) *)
+(* (λ .λ .1 0) (λ .λ . 1 0)
+   λ . (λ .λ . 1 0) 0    --- I0 => L0
+   λ . λ . L0 I0
+*)
+(* λ . λ . 1 0 *)
+
+let nf5 = nf (Ap(Lam(Ap(Var(Bound 0) , Var(Bound 0))), Lam(Lam(Ap(Var(Bound 1) , Var(Bound 0))))))
+
+(* x (\y. (\z. z) y) *)
+(* x (λ . (λ .0) 0) *)
+(* x λ .0 *)
+let nf6 = nf (Ap(Var(Free "x") , Lam (Ap(Lam (Var (Bound 0)) , Var (Bound 0)))))
+
+(* λ p . (λ f . p (f f)) (λ f . p (f f)) *)
+(* let nf7 = nf (
+  Lam
+   (Ap (Lam (Ap (Var (Bound 1), Ap (Var (Bound 0), Var (Bound 0)))),
+     Lam (Ap (Var (Bound 1), Ap (Var (Bound 0), Var (Bound 0))))))
+) *)
+
+(* let nf8 = nf (
+  Ap
+   (Lam
+     (Ap (Lam (Ap (Var (Bound 1), Ap (Var (Bound 0), Var (Bound 0)))),
+       Lam (Ap (Var (Bound 1), Ap (Var (Bound 0), Var (Bound 0)))))),
+   Lam
+    (Lam
+      (Ap
+        (Ap
+          (Ap
+            (Lam
+              (Ap (Ap (Var (Bound 0), Lam (Lam (Lam (Var (Bound 0))))),
+                Lam (Lam (Var (Bound 1))))),
+            Var (Bound 0)),
+          Lam (Lam (Var (Bound 0)))),
+        Ap
+         (Ap
+           (Lam
+             (Lam
+               (Lam
+                 (Lam
+                   (Ap (Ap (Var (Bound 2), Var (Bound 1)),
+                     Ap (Ap (Var (Bound 3), Var (Bound 1)), Var (Bound 0))))))),
+           Var (Bound 0)),
+         Ap (Var (Bound 1),
+          Ap
+           (Lam
+             (Lam
+               (Lam
+                 (Ap
+                   (Ap
+                     (Ap (Var (Bound 2),
+                       Lam
+                        (Lam
+                          (Ap (Var (Bound 0),
+                            Ap (Var (Bound 1), Var (Bound 3)))))),
+                     Lam (Var (Bound 1))),
+                   Lam (Var (Bound 0)))))),
+           Var (Bound 0))))))))
+) *)
+
+(* let dnf1 = Good_nf.to_dterm (Lam(Lam( Ap( Lam(Lam(Var(Bound 1))) , Ap( Var(Bound 0) , t_id ) )))) *)
+
+(* let dnf3 = Good_nf.to_dterm (Lam(Lam(Ap( Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) , Var(Bound 0))))) *)
+(* let snf3' = Good_nf.test_Dterm (Lam(Lam(Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) ))) *)
+(* let snf3 = Good_nf.test_Dterm (Lam(Lam(Ap( Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) , Var(Bound 0))))) *)
+(* let s1nf3 = Good_nf.dsubst_bound (Good_nf.DLam (Good_nf.DLam (Good_nf.DVar (Good_nf.DIndex 1)))) (Good_nf.DVar (Good_nf.DLevel 0))
+let s2nf3 = Good_nf.dsubst_bound s1nf3 (Good_nf.DVar (Good_nf.DLevel 1)) *)
+
+
+(* let dnf5 = Good_nf.to_dterm (Ap(Lam(Ap(Var(Bound 0) , Var(Bound 0))), Lam(Lam(Ap(Var(Bound 1) , Var(Bound 0)))))) *)
+(* let s1nf5 = Good_nf.dsubst_bound 
+(
+  (Good_nf.DAp (Good_nf.DVar (Good_nf.DIndex 0),
+    Good_nf.DVar (Good_nf.DIndex 0)))) 
+(Good_nf.DLam
+  (Good_nf.DLam
+    (Good_nf.DAp (Good_nf.DVar (Good_nf.DIndex 1),
+      Good_nf.DVar (Good_nf.DIndex 0))))) *)
+
+(* λ .1 0  ---  (λ .λ . 1 0)
+=> λ . (λ .λ . I1 I0) L0
+   here fap = 1, d = 1, index = 0, will change to level *)
+(* let s2nf5 = Good_nf.dsubst_bound
+(Good_nf.DLam
+  (Good_nf.DAp (Good_nf.DVar (Good_nf.DIndex 1),
+    Good_nf.DVar (Good_nf.DIndex 0))))
+(Good_nf.DLam
+  (Good_nf.DLam
+    (Good_nf.DAp (Good_nf.DVar (Good_nf.DIndex 1),
+      Good_nf.DVar (Good_nf.DIndex 0))))) *)
+
+(* let snf5 = Good_nf.test_Dterm (Ap(Lam(Ap(Var(Bound 0) , Var(Bound 0))), Lam(Lam(Ap(Var(Bound 1) , Var(Bound 0)))))) *)
+
+(* 
+module Good_nf = struct
+  
+  type dvar = 
+    | DIndex of int
+    | DLevel of int
+    | DFree of string
+
+  type dterm = 
+    | DVar of dvar
+    | DLam of dterm
+    | DAp of dterm * dterm
+  
+  (* let rec pretty (t : dterm) = 
+    match t with
+    | DVar (DIndex i) -> Printf.sprintf " I%d " i
+    | DVar (DLevel l) -> Printf.sprintf " L%d " l
+    | DVar (DFree  s) -> " " ^ s ^ " "
+    | DAp (t1 , t2) -> 
+      let par1 = begin
+        match t1 with
+        | DVar _ | DAp _ -> false
+        | DLam _ -> true
+      end in
+      let par2 = begin
+        match t2 with
+        | DVar _ -> false
+        | DAp _ | DLam _ -> true
+      end in
+      let s1 = pretty t1 in
+      let s2 = pretty t2 in
+      let s1' = if par1 then "(" ^ s1 ^ ")" else s1 in
+      let s2' = if par2 then "(" ^ s2 ^ ")" else s2 in
+      s1' ^ " " ^ s2'
+    | DLam (t') -> 
+      let s' = pretty t' in
+      Printf.sprintf "λ . %s" s' *)
+
+  (* 你可能需要的 dterm 版的 subst_bound *)
+  let dsubst_bound (a : dterm) (b : dterm) (entry : int) : dterm = 
+    let reorder_term (t : dterm) (entry' : int): dterm = 
+      (let rec reorderTerm t d first_ap enter = 
+        match t with
+        | DAp (t1, t2)   -> 
+          let fap = (* d *)
+            if (first_ap >= 0) then first_ap else d
+          in 
+          DAp ( reorderTerm t1 d fap enter, reorderTerm t2 d fap enter )
+        | DLam t'        -> DLam ( reorderTerm t' (d+1) first_ap enter )
+        | DVar ( DLevel l ) -> DVar ( DLevel l ) (* 既然可以被替换，内部的肯定均为Index *)
+        | DVar ( DIndex k ) -> (* DVar ( DIndex k ) *)
+          if ((first_ap >= 0) && ((d - k) <= first_ap)) 
+            then DVar ( DLevel (d - k - 1 + enter) )
+            else DVar ( DIndex k )
+        | DVar ( DFree s )  -> DVar ( DFree s )
+      in
+      reorderTerm t 0 (-1) entry')
+    in
+    let rec substBound a b d enter : dterm = 
+      match a with
+      | DVar (DIndex k) -> 
+        if (phys_equal k d) then b else a
+      | DVar (DLevel l) -> a (* compare with enter level *)
+        (* if (phys_equal l enter) then b else a  *)
+        (* level is real level ! *)
+      | DVar (DFree s)  -> a
+      | DLam r         -> DLam (substBound r b (d+1) enter)
+      | DAp (e1 , e2)  -> DAp (substBound e1 b d enter, substBound e2 b d enter)
+    in
+    reorder_term (substBound a (reorder_term b entry) 0 entry) entry
+  (* let dsubst_bound (a : dterm) (b : dterm) (entry : int) : dterm = 
     let reorder_term (t : dterm) (entry' : int): dterm = 
       (let rec reorderTerm t d first_ap enter = 
         match t with
@@ -491,15 +767,15 @@ module Good_nf = struct
       | DLam r         -> DLam (substBound r b (d+1) enter)
       | DAp (e1 , e2)  -> DAp (substBound e1 b d enter, substBound e2 b d enter)
       in
-      reorder_term (substBound a b 0 entry) entry
+      reorder_term (substBound a (reorder_term b entry) 0 entry) entry *)
 
   (* 你可能需要的 dterm 和 term 之间的转换函数 *)
   let rec to_dterm (t : term) : dterm = 
     let rec toDterm t d first_ap : dterm = 
       match t with
       | Ap (t1, t2)   -> 
-        let fap = d
-          (* if (first_ap >= 0) then first_ap else d *)
+        let fap = (* d *)
+          if (first_ap >= 0) then first_ap else d
         in 
         DAp ( toDterm t1 d fap, toDterm t2 d fap )
       | Lam t'        -> DLam ( toDterm t' (d+1) first_ap)
@@ -528,26 +804,49 @@ module Good_nf = struct
      最终测试的目标之一.
   *)
 
+  (* let nf (t : term) : term = 
+    let rec aux (t : dterm) (l : dterm list) (d : int) : dterm =
+      match t with
+      | DAp (t1 , t2) -> aux t1 (t2 :: l) d
+      | DLam t' ->
+        begin
+          match l with
+          | [] -> DLam (aux t' [] (d+1))
+          | u :: l' -> aux (dsubst_bound t' u d) l' d
+        end
+      | DVar _ ->
+        let norm_l = List.map l ~f:(fun t -> aux t [] d) in
+        List.fold norm_l ~init:t ~f:(fun u v -> DAp (u , v))
+      in
+    from_dterm (aux (to_dterm t) [] 0) *)
+
+  let rec csubst_bound (a : C.term) (b : C.term) (x : string) : C.term = 
+    let rec substBound a b x d : C.term = 
+      match a with
+      | C.Var (y) -> 
+        if (String.equal x y) then b else a
+      | C.Lam (y, r)         -> C.Lam (y, (substBound r b x (d+1)))
+      | C.Ap (e1 , e2)  -> C.Ap (substBound e1 b x d, substBound e2 b x d)
+    in
+    substBound a b x 0
+
   let nf (t : term) : term = 
-    let rec aux (t : dterm) (l : dterm list) (d : int) : dterm =
-      (* let _ = 
-        print_endline (pretty t)
-      in *)
+    let rec aux (t : C.term) (l : C.term list) : C.term =
       match t with
-      | DAp (t1 , t2) -> aux t1 (t2 :: l) d
-      | DLam t' ->
+      | C.Ap (t1 , t2) -> aux t1 (t2 :: l) 
+      | C.Lam (x, t') ->
         begin
           match l with
-          | [] -> DLam (aux t' [] (d+1))
-          | u :: l' -> aux (dsubst_bound t' u d) l' d
+          | [] -> C.Lam (x, (aux t' []))
+          | u :: l' -> aux (csubst_bound t' u x) l'
         end
-      | DVar _ ->
-        let norm_l = List.map l ~f:(fun t -> aux t [] d) in
-        List.fold norm_l ~init:t ~f:(fun u v -> DAp (u , v))
+      | C.Var _ ->
+        let norm_l = List.map l ~f:(fun t -> aux t []) in
+        List.fold norm_l ~init:t ~f:(fun u v -> C.Ap (u , v))
       in
-    from_dterm (aux (to_dterm t) [] 0)
+    (aux (t |> from_locally_nameless) []) |> to_locally_nameless
 
-  let rec test_Dterm (t : term) : dterm = 
+  (* let rec test_Dterm (t : term) : dterm = 
     let rec aux (t : dterm) (l : dterm list) (d : int) : dterm =
       match t with
       | DAp (t1 , t2) -> aux t1 (t2 :: l) d
@@ -561,67 +860,6 @@ module Good_nf = struct
         let norm_l = List.map l ~f:(fun t -> aux t [] d) in
         List.fold norm_l ~init:t ~f:(fun u v -> DAp (u , v))
       in
-    (aux (to_dterm t) [] 0)
+    (aux (to_dterm t) [] 0) *)
 
-end
-
-let nf = Good_nf.nf
-
-(* 如果两个 lambda term 都有 normal form, 
-   那么当两个 normal form 语法等同 (长得一模一样) 时,
-   它们在等式语义下就是等价的. 下面的函数判断此事. *)
-let equiv t t' = syn_equal (nf t) (nf t')
-
-(* λ y . λ z . (λ a . λ b . a) (z (λ c . c)) *)
-(* λ . λ . λ . 1 (λ . 0) *)
-(* let dnf1 = Good_nf.to_dterm (Lam(Lam( Ap( Lam(Lam(Var(Bound 1))) , Ap( Var(Bound 0) , t_id ) )))) *)
-let nf1 = nf (Lam(Lam( Ap( Lam(Lam(Var(Bound 1))) , Ap( Var(Bound 0) , t_id ) ))))
-
-(* (λ. λ. x 1) x *)
-(* λ. x x *)
-let nf2 = nf (Ap(Lam( Lam( Ap (Var (Free "x"), Var(Bound 1)))), Var(Free "x")))
-
-(* λ y. λ z. (λ x. λ y. x) y z *)
-(* λ y. λ z. y *)
-(* let dnf3 = Good_nf.to_dterm (Lam(Lam(Ap( Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) , Var(Bound 0))))) *)
-(* let snf3' = Good_nf.test_Dterm (Lam(Lam(Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) ))) *)
-(* let snf3 = Good_nf.test_Dterm (Lam(Lam(Ap( Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) , Var(Bound 0))))) *)
-(* let s1nf3 = Good_nf.dsubst_bound (Good_nf.DLam (Good_nf.DLam (Good_nf.DVar (Good_nf.DIndex 1)))) (Good_nf.DVar (Good_nf.DLevel 0))
-let s2nf3 = Good_nf.dsubst_bound s1nf3 (Good_nf.DVar (Good_nf.DLevel 1)) *)
-let nf3 = nf (Lam(Lam(Ap( Ap( Lam(Lam(Var(Bound 1))) , Var(Bound 1) ) , Var(Bound 0)))))
-
-(* (λ .0 x y)(λ .λ .1) *)
-(* x *)
-let nf4 = nf (Ap(Lam(Ap(Ap(Var(Bound 0) , Var(Free "x")) , Var(Free "y"))) , Lam(Lam(Var(Bound 1)))))
-
-(* (λ .0 0)(λ .λ .1 0) *)
-(* (λ .λ .1 0) (λ .λ . 1 0)
-   λ . (λ .λ . 1 0) 0    --- I0 => L0
-   λ . λ . L0 I0
-*)
-(* λ . λ . 1 0 *)
-(* let dnf5 = Good_nf.to_dterm (Ap(Lam(Ap(Var(Bound 0) , Var(Bound 0))), Lam(Lam(Ap(Var(Bound 1) , Var(Bound 0)))))) *)
-(* let s1nf5 = Good_nf.dsubst_bound 
-(
-  (Good_nf.DAp (Good_nf.DVar (Good_nf.DIndex 0),
-    Good_nf.DVar (Good_nf.DIndex 0)))) 
-(Good_nf.DLam
-  (Good_nf.DLam
-    (Good_nf.DAp (Good_nf.DVar (Good_nf.DIndex 1),
-      Good_nf.DVar (Good_nf.DIndex 0))))) *)
-
-(* λ .1 0  ---  (λ .λ . 1 0)
-=> λ . (λ .λ . I1 I0) L0
-   here fap = 1, d = 1, index = 0, will change to level *)
-(* let s2nf5 = Good_nf.dsubst_bound
-(Good_nf.DLam
-  (Good_nf.DAp (Good_nf.DVar (Good_nf.DIndex 1),
-    Good_nf.DVar (Good_nf.DIndex 0))))
-(Good_nf.DLam
-  (Good_nf.DLam
-    (Good_nf.DAp (Good_nf.DVar (Good_nf.DIndex 1),
-      Good_nf.DVar (Good_nf.DIndex 0))))) *)
-
-(* let snf5 = Good_nf.test_Dterm (Ap(Lam(Ap(Var(Bound 0) , Var(Bound 0))), Lam(Lam(Ap(Var(Bound 1) , Var(Bound 0)))))) *)
-
-let nf5 = nf (Ap(Lam(Ap(Var(Bound 0) , Var(Bound 0))), Lam(Lam(Ap(Var(Bound 1) , Var(Bound 0))))))
+end *)
